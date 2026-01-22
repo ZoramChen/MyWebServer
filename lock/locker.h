@@ -8,6 +8,7 @@
 class sem
 {
 public:
+    //初始化一个线程间共享的、初始值为 0 的信号量
     sem()
     {
         if (sem_init(&m_sem, 0, 0) != 0)
@@ -15,6 +16,7 @@ public:
             throw std::exception();
         }
     }
+    //初始化一个线程间共享的、初始值为 num 的信号量
     sem(int num)
     {
         if (sem_init(&m_sem, 0, num) != 0)
@@ -22,14 +24,17 @@ public:
             throw std::exception();
         }
     }
+    //自动销毁信号量，释放底层系统资源
     ~sem()
     {
         sem_destroy(&m_sem);
     }
+    //执行信号量的 P 操作（减 1）
     bool wait()
     {
         return sem_wait(&m_sem) == 0;
     }
+    //执行信号量的 V 操作（加 1）
     bool post()
     {
         return sem_post(&m_sem) == 0;

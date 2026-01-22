@@ -28,8 +28,11 @@ class util_timer;
 
 struct client_data
 {
+    //客户端socket地址
     sockaddr_in address;
+    //socket文件描述符
     int sockfd;
+    //定时器
     util_timer *timer;
 };
 
@@ -39,14 +42,19 @@ public:
     util_timer() : prev(NULL), next(NULL) {}
 
 public:
+    //超时时间
     time_t expire;
-    
+    //回调函数
     void (* cb_func)(client_data *);
+    //连接资源
     client_data *user_data;
+    //前向定时器
     util_timer *prev;
+    //后继定时器
     util_timer *next;
 };
 
+//升序定时器链表
 class sort_timer_lst
 {
 public:

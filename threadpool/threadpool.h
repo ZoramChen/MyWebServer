@@ -30,7 +30,7 @@ private:
     std::list<T *> m_workqueue; //请求队列
     locker m_queuelocker;       //保护请求队列的互斥锁
     sem m_queuestat;            //是否有任务需要处理
-    connection_pool *m_connPool;  //数据库
+    connection_pool *m_connPool;  //数据库连接池
     int m_actor_model;          //模型切换
 };
 template <typename T>
@@ -69,7 +69,7 @@ bool threadpool<T>::append(T *request, int state)
         m_queuelocker.unlock();
         return false;
     }
-    request->m_state = state;
+    request->m_state = state;   //读为0, 写为1
     m_workqueue.push_back(request);
     m_queuelocker.unlock();
     m_queuestat.post();
@@ -113,8 +113,11 @@ void threadpool<T>::run()
         m_queuelocker.unlock();
         if (!request)
             continue;
+        
+        //reactor模型,工作线程执行 read_once() 或 write()，然后处理
         if (1 == m_actor_model)
         {
+            //读信号
             if (0 == request->m_state)
             {
                 if (request->read_once())
@@ -129,6 +132,7 @@ void threadpool<T>::run()
                     request->timer_flag = 1;
                 }
             }
+            //写信号
             else
             {
                 if (request->write())
@@ -142,6 +146,7 @@ void threadpool<T>::run()
                 }
             }
         }
+        //proactor模型,工作线程直接调用 process()（I/O 已在主线程完成）
         else
         {
             connectionRAII mysqlcon(&request->mysql, m_connPool);

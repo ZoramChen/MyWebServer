@@ -165,6 +165,7 @@ void Utils::addfd(int epollfd, int fd, bool one_shot, int TRIGMode)
     epoll_event event;
     event.data.fd = fd;
 
+    //EPOLLIN（读事件）、EPOLRDHUP（对端关闭连接事件）、EPOLLET（边沿触发）
     if (1 == TRIGMode)
         event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
     else
@@ -182,6 +183,7 @@ void Utils::sig_handler(int sig)
     //为保证函数的可重入性，保留原来的errno
     int save_errno = errno;
     int msg = sig;
+    //将信号值从管道写端写入，传输字符类型，而非整
     send(u_pipefd[1], (char *)&msg, 1, 0);
     errno = save_errno;
 }
@@ -217,8 +219,11 @@ int Utils::u_epollfd = 0;
 class Utils;
 void cb_func(client_data *user_data)
 {
+    //删除非活动连接在socket上的注册事件
     epoll_ctl(Utils::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
     assert(user_data);
+    //关闭文件描述符
     close(user_data->sockfd);
+    //减少连接数
     http_conn::m_user_count--;
 }

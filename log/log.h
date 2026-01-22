@@ -14,6 +14,7 @@ class Log
 {
 public:
     //C++11以后,使用局部变量懒汉不用加锁
+    // 单例模式：保证一个类只有一个实例，并提供一个访问它的全局访问点。
     static Log *get_instance()
     {
         static Log instance;
@@ -58,7 +59,7 @@ private:
     block_queue<string> *m_log_queue; //阻塞队列
     bool m_is_async;                  //是否同步标志位
     locker m_mutex;
-    int m_close_log; //关闭日志
+    int m_close_log; //关闭日志（1-关闭 0-未关闭）
 };
 
 #define LOG_DEBUG(format, ...) if(0 == m_close_log) {Log::get_instance()->write_log(0, format, ##__VA_ARGS__); Log::get_instance()->flush();}

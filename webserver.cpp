@@ -77,9 +77,9 @@ void WebServer::log_write()
     if (0 == m_close_log)
     {
         //初始化日志
-        if (1 == m_log_write)
+        if (1 == m_log_write)  //异步
             Log::get_instance()->init("./ServerLog", m_close_log, 2000, 800000, 800);
-        else
+        else  //同步
             Log::get_instance()->init("./ServerLog", m_close_log, 2000, 800000, 0);
     }
 }
@@ -88,7 +88,7 @@ void WebServer::sql_pool()
 {
     //初始化数据库连接池
     m_connPool = connection_pool::GetInstance();
-    m_connPool->init("localhost", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
+    m_connPool->init("127.0.0.1", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
 
     //初始化数据库读取表
     users->initmysql_result(m_connPool);
@@ -142,13 +142,18 @@ void WebServer::eventListen()
     utils.addfd(m_epollfd, m_listenfd, false, m_LISTENTrigmode);
     http_conn::m_epollfd = m_epollfd;
 
+    //创建管道套接字
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, m_pipefd);
     assert(ret != -1);
+    //设置管道写端为非阻塞，
     utils.setnonblocking(m_pipefd[1]);
+    //设置管道读端为ET非阻塞
     utils.addfd(m_epollfd, m_pipefd[0], false, 0);
-
+    //当进程向一个已经被对端关闭的套接字写入数据时，内核会向当前进程发送 SIGPIPE 信号
     utils.addsig(SIGPIPE, SIG_IGN);
+    //SIGALRM 是闹钟信号
     utils.addsig(SIGALRM, utils.sig_handler, false);
+    //SIGTERM 是优雅终止进程的信号，通常由 kill 命令（默认不带信号编号时）发送
     utils.addsig(SIGTERM, utils.sig_handler, false);
 
     alarm(TIMESLOT);
@@ -166,12 +171,14 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     //创建定时器，设置回调函数和超时时间，绑定用户数据，将定时器添加到链表中
     users_timer[connfd].address = client_address;
     users_timer[connfd].sockfd = connfd;
+    //创建定时器临时变量
     util_timer *timer = new util_timer;
     timer->user_data = &users_timer[connfd];
     timer->cb_func = cb_func;
     time_t cur = time(NULL);
     timer->expire = cur + 3 * TIMESLOT;
     users_timer[connfd].timer = timer;
+    //加入到升序定时器链表
     utils.m_timer_lst.add_timer(timer);
 }
 
@@ -201,6 +208,7 @@ bool WebServer::dealclientdata()
 {
     struct sockaddr_in client_address;
     socklen_t client_addrlength = sizeof(client_address);
+    //如果是水平触发
     if (0 == m_LISTENTrigmode)
     {
         int connfd = accept(m_listenfd, (struct sockaddr *)&client_address, &client_addrlength);
@@ -215,6 +223,7 @@ bool WebServer::dealclientdata()
             LOG_ERROR("%s", "Internal server busy");
             return false;
         }
+        //添加定时器，同时初始化相关资源
         timer(connfd, client_address);
     }
 
@@ -222,6 +231,7 @@ bool WebServer::dealclientdata()
     {
         while (1)
         {
+            //如果存在多个待处理的客户端连接请求，多次调用accept函数回返回不同的connfd
             int connfd = accept(m_listenfd, (struct sockaddr *)&client_address, &client_addrlength);
             if (connfd < 0)
             {
@@ -246,6 +256,8 @@ bool WebServer::dealwithsignal(bool &timeout, bool &stop_server)
     int ret = 0;
     int sig;
     char signals[1024];
+    //从管道读端读出信号值，成功返回字节数，失败返回-1
+    //正常情况下，这里的ret返回值总是1，只有14和15两个ASCII码对应的字符
     ret = recv(m_pipefd[0], signals, sizeof(signals), 0);
     if (ret == -1)
     {
@@ -284,16 +296,18 @@ void WebServer::dealwithread(int sockfd)
     //reactor
     if (1 == m_actormodel)
     {
+        //重新设置超时时间以及调整在链中的位置
         if (timer)
         {
             adjust_timer(timer);
         }
 
-        //若监测到读事件，将该事件放入请求队列
+        //若监测到读事件，将该事件放入请求队列（以reactor模式插入）
         m_pool->append(users + sockfd, 0);
 
         while (true)
         {
+            //等待线程处理完成  
             if (1 == users[sockfd].improv)
             {
                 if (1 == users[sockfd].timer_flag)
@@ -309,11 +323,12 @@ void WebServer::dealwithread(int sockfd)
     else
     {
         //proactor
+        //在主线程将请求数据从内核态复制到用户态
         if (users[sockfd].read_once())
         {
             LOG_INFO("deal with the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
 
-            //若监测到读事件，将该事件放入请求队列
+            //若监测到读事件，将该事件放入请求队列（以proactor模式插入）
             m_pool->append_p(users + sockfd);
 
             if (timer)
@@ -392,20 +407,21 @@ void WebServer::eventLoop()
         {
             int sockfd = events[i].data.fd;
 
-            //处理新到的客户连接
+            //处理新到的客户连接，然后加入定时器
             if (sockfd == m_listenfd)
             {
                 bool flag = dealclientdata();
                 if (false == flag)
                     continue;
             }
+            // 关闭连接或者出现错误
             else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
             {
                 //服务器端关闭连接，移除对应的定时器
                 util_timer *timer = users_timer[sockfd].timer;
                 deal_timer(timer, sockfd);
             }
-            //处理信号
+            //处理信号(闹钟和进程终止信号)
             else if ((sockfd == m_pipefd[0]) && (events[i].events & EPOLLIN))
             {
                 bool flag = dealwithsignal(timeout, stop_server);
