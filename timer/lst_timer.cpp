@@ -23,9 +23,11 @@ void sort_timer_lst::add_timer(util_timer *timer)
     {
         return;
     }
+    m_lock.lock();
     if (!head)
     {
         head = tail = timer;
+        m_lock.unlock();
         return;
     }
     if (timer->expire < head->expire)
@@ -33,9 +35,11 @@ void sort_timer_lst::add_timer(util_timer *timer)
         timer->next = head;
         head->prev = timer;
         head = timer;
+        m_lock.unlock();
         return;
     }
     add_timer(timer, head);
+    m_lock.unlock();
 }
 void sort_timer_lst::adjust_timer(util_timer *timer)
 {
@@ -43,9 +47,11 @@ void sort_timer_lst::adjust_timer(util_timer *timer)
     {
         return;
     }
+    m_lock.lock();
     util_timer *tmp = timer->next;
     if (!tmp || (timer->expire < tmp->expire))
     {
+        m_lock.unlock();
         return;
     }
     if (timer == head)
@@ -61,6 +67,7 @@ void sort_timer_lst::adjust_timer(util_timer *timer)
         timer->next->prev = timer->prev;
         add_timer(timer, timer->next);
     }
+    m_lock.unlock();
 }
 void sort_timer_lst::del_timer(util_timer *timer)
 {
@@ -68,11 +75,13 @@ void sort_timer_lst::del_timer(util_timer *timer)
     {
         return;
     }
+    m_lock.lock();
     if ((timer == head) && (timer == tail))
     {
         delete timer;
         head = NULL;
         tail = NULL;
+        m_lock.unlock();
         return;
     }
     if (timer == head)
@@ -80,6 +89,7 @@ void sort_timer_lst::del_timer(util_timer *timer)
         head = head->next;
         head->prev = NULL;
         delete timer;
+        m_lock.unlock();
         return;
     }
     if (timer == tail)
@@ -87,35 +97,52 @@ void sort_timer_lst::del_timer(util_timer *timer)
         tail = tail->prev;
         tail->next = NULL;
         delete timer;
+        m_lock.unlock();
         return;
     }
     timer->prev->next = timer->next;
     timer->next->prev = timer->prev;
     delete timer;
+    m_lock.unlock();
 }
 void sort_timer_lst::tick()
 {
-    if (!head)
+    while (true)
     {
-        return;
-    }
-    
-    time_t cur = time(NULL);
-    util_timer *tmp = head;
-    while (tmp)
-    {
+        m_lock.lock();
+
+        if (!head)
+        {
+            m_lock.unlock();
+            return;
+        }
+
+        time_t cur = time(NULL);
+        util_timer *tmp = head;
         if (cur < tmp->expire)
         {
-            break;
+            m_lock.unlock();
+            return;
         }
-        tmp->cb_func(tmp->user_data);
+
+        // 从链表中摘下当前到期定时器
         head = tmp->next;
         if (head)
         {
             head->prev = NULL;
         }
+        else
+        {
+            // 链表为空时同步更新 tail
+            tail = NULL;
+        }
+        tmp->next = tmp->prev = NULL;
+
+        m_lock.unlock();
+
+        // 在不持锁的情况下执行回调，避免回调内再次操作定时器导致死锁
+        tmp->cb_func(tmp->user_data);
         delete tmp;
-        tmp = head;
     }
 }
 

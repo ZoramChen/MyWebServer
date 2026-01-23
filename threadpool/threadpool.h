@@ -122,27 +122,24 @@ void threadpool<T>::run()
             {
                 if (request->read_once())
                 {
-                    request->improv = 1;
+                    // request->improv = 1;
                     connectionRAII mysqlcon(&request->mysql, m_connPool);
                     request->process();
                 }
                 else
                 {
-                    request->improv = 1;
-                    request->timer_flag = 1;
+                    // request->improv = 1;
+                    // request->timer_flag = 1;
+                    request->deal_timer();
                 }
             }
             //写信号
             else
             {
-                if (request->write())
+                if (!request->write())
                 {
-                    request->improv = 1;
-                }
-                else
-                {
-                    request->improv = 1;
-                    request->timer_flag = 1;
+                    request->deal_timer();
+                    // request->improv = 1;
                 }
             }
         }

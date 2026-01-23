@@ -165,7 +165,6 @@ void WebServer::eventListen()
 
 void WebServer::timer(int connfd, struct sockaddr_in client_address)
 {
-    users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log, m_user, m_passWord, m_databaseName);
 
     //初始化client_data数据
     //创建定时器，设置回调函数和超时时间，绑定用户数据，将定时器添加到链表中
@@ -180,6 +179,8 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     users_timer[connfd].timer = timer;
     //加入到升序定时器链表
     utils.m_timer_lst.add_timer(timer);
+
+    users[connfd].init(connfd, client_address, m_root, 1, 0, m_user, m_passWord, m_databaseName, timer);
 }
 
 //若有数据传输，则将定时器往后延迟3个单位
@@ -225,6 +226,10 @@ bool WebServer::dealclientdata()
         }
         //添加定时器，同时初始化相关资源
         timer(connfd, client_address);
+
+        const char* ip_str = inet_ntoa(client_address.sin_addr);
+        LOG_INFO("客户端IP地址（C风格）：%s", ip_str);
+        LOG_INFO("accept fd %d", connfd);
     }
 
     else
@@ -305,20 +310,20 @@ void WebServer::dealwithread(int sockfd)
         //若监测到读事件，将该事件放入请求队列（以reactor模式插入）
         m_pool->append(users + sockfd, 0);
 
-        while (true)
-        {
-            //等待线程处理完成  
-            if (1 == users[sockfd].improv)
-            {
-                if (1 == users[sockfd].timer_flag)
-                {
-                    deal_timer(timer, sockfd);
-                    users[sockfd].timer_flag = 0;
-                }
-                users[sockfd].improv = 0;
-                break;
-            }
-        }
+        // while (true)
+        // {
+        //     //等待线程处理完成  
+        //     if (1 == users[sockfd].improv)
+        //     {
+        //         if (1 == users[sockfd].timer_flag)
+        //         {
+        //             deal_timer(timer, sockfd);
+        //             users[sockfd].timer_flag = 0;
+        //         }
+        //         users[sockfd].improv = 0;
+        //         break;
+        //     }
+        // }
     }
     else
     {
@@ -356,19 +361,19 @@ void WebServer::dealwithwrite(int sockfd)
 
         m_pool->append(users + sockfd, 1);
 
-        while (true)
-        {
-            if (1 == users[sockfd].improv)
-            {
-                if (1 == users[sockfd].timer_flag)
-                {
-                    deal_timer(timer, sockfd);
-                    users[sockfd].timer_flag = 0;
-                }
-                users[sockfd].improv = 0;
-                break;
-            }
-        }
+        // while (true)
+        // {
+        //     if (1 == users[sockfd].improv)
+        //     {
+        //         if (1 == users[sockfd].timer_flag)
+        //         {
+        //             deal_timer(timer, sockfd);
+        //             users[sockfd].timer_flag = 0;
+        //         }
+        //         users[sockfd].improv = 0;
+        //         break;
+        //     }
+        // }
     }
     else
     {

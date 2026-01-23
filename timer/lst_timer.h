@@ -23,6 +23,7 @@
 
 #include <time.h>
 #include "../log/log.h"
+#include "../lock/locker.h"
 
 class util_timer;
 
@@ -68,6 +69,9 @@ public:
 
 private:
     void add_timer(util_timer *timer, util_timer *lst_head);
+
+    // 保护内部链表(head/tail)的互斥量，保证所有对外接口在多线程下安全
+    locker m_lock;
 
     util_timer *head;
     util_timer *tail;

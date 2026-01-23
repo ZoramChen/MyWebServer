@@ -84,7 +84,7 @@ public:
 
 public:
     //初始化套接字地址，函数内部会调用私有方法init()
-    void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname);
+    void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname, util_timer *time);
     //关闭http连接
     void close_conn(bool real_close = true);
     void process();
@@ -98,8 +98,8 @@ public:
     }
     //同步线程初始化数据库读取表
     void initmysql_result(connection_pool *connPool);
-    int timer_flag;  // 数据读写是否正常完成 1--会调用 deal_timer() 删除定时器并关闭连接 0--不会调用 deal_timer()
-    int improv; // 工作线程已经完成的数据读写 0--处理未完成，主线程等待 1--处理已完成，主线程可继续
+    // int timer_flag;  // 数据读写是否正常完成 1--会调用 deal_timer() 删除定时器并关闭连接 0--不会调用 deal_timer()
+    // int improv; // 工作线程已经完成的数据读写 0--处理未完成，主线程等待 1--处理已完成，主线程可继续
 
 
 private:
@@ -136,14 +136,15 @@ private:
     bool add_linger();
     bool add_blank_line();
 
-    // 处理定时器
-    void deal_timer();
 
 public:
     static int m_epollfd;
     static int m_user_count;
     MYSQL *mysql;
     int m_state;  //读为0, 写为1
+
+    // 处理定时器
+    void deal_timer();
 
 private:
     int m_sockfd;
@@ -195,6 +196,9 @@ private:
     char sql_user[100];
     char sql_passwd[100];
     char sql_name[100];
+
+    util_timer *timer;
+    Utils utils;
 };
 
 #endif

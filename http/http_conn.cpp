@@ -113,13 +113,15 @@ void http_conn::close_conn(bool real_close)
 
 //初始化连接,外部调用初始化套接字地址
 void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMode,
-                     int close_log, string user, string passwd, string sqlname)
+                     int close_log, string user, string passwd, string sqlname, util_timer *time)
 {
     m_sockfd = sockfd;
     m_address = addr;
 
     addfd(m_epollfd, sockfd, true, m_TRIGMode);
     m_user_count++;
+
+    timer=time;
 
     //当浏览器出现连接重置时，可能是网站根目录出错或http响应格式出错或者访问的文件中内容完全为空
     doc_root = root;
@@ -153,7 +155,7 @@ void http_conn::init()
     m_write_idx = 0;
     cgi = 0;
     m_state = 0;
-    timer_flag = 0;
+    // timer_flag = 0;
 
     memset(m_read_buf, '\0', READ_BUFFER_SIZE);
     memset(m_write_buf, '\0', WRITE_BUFFER_SIZE);
@@ -733,4 +735,19 @@ void http_conn::process()
         close_conn();
     }
     modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
+}
+
+
+
+void http_conn::deal_timer()
+{
+    if(timer->cb_func != NULL) {
+        timer->cb_func(timer->user_data);
+    }
+    if (timer)
+    {
+        utils.m_timer_lst.del_timer(timer);
+    }
+
+    LOG_INFO("close fd %d", m_sockfd);
 }
