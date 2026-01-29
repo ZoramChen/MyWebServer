@@ -17,6 +17,17 @@ sort_timer_lst::~sort_timer_lst()
     }
 }
 
+void sort_timer_lst::show_timer()
+{
+    util_timer *tmp = head;
+    while(tmp){
+        printf("%d(%p)-->",tmp->user_data->sockfd,(void*)tmp);
+        tmp = tmp->next;
+    }
+    printf("\n");
+}
+
+
 void sort_timer_lst::add_timer(util_timer *timer)
 {
     if (!timer)
@@ -27,6 +38,8 @@ void sort_timer_lst::add_timer(util_timer *timer)
     if (!head)
     {
         head = tail = timer;
+        // printf("添加新的timer(%d)，head为空，直接作为头节点\n",timer->user_data->sockfd);
+        // show_timer();
         m_lock.unlock();
         return;
     }
@@ -35,19 +48,25 @@ void sort_timer_lst::add_timer(util_timer *timer)
         timer->next = head;
         head->prev = timer;
         head = timer;
+        // printf("添加新的timer(%d)，expire最小，直接作为头节点\n",timer->user_data->sockfd);
+        // show_timer();
         m_lock.unlock();
         return;
     }
+    // printf("添加新的timer(%d)\n",timer->user_data->sockfd);
     add_timer(timer, head);
+    // show_timer();
     m_lock.unlock();
 }
 void sort_timer_lst::adjust_timer(util_timer *timer)
 {
+    
     if (!timer)
     {
         return;
     }
     m_lock.lock();
+    // printf("调整旧的timer(%d)\n",timer->user_data->sockfd);
     util_timer *tmp = timer->next;
     if (!tmp || (timer->expire < tmp->expire))
     {
@@ -67,20 +86,24 @@ void sort_timer_lst::adjust_timer(util_timer *timer)
         timer->next->prev = timer->prev;
         add_timer(timer, timer->next);
     }
+    // show_timer();
     m_lock.unlock();
 }
 void sort_timer_lst::del_timer(util_timer *timer)
 {
+    // printf("删除旧的timer(%d) %p\n",timer->user_data->sockfd, (void*)timer);
     if (!timer)
     {
         return;
     }
     m_lock.lock();
+    // printf("删除旧的timer(%d) %p\n",timer->user_data->sockfd, (void*)timer);
     if ((timer == head) && (timer == tail))
     {
         delete timer;
         head = NULL;
         tail = NULL;
+        // show_timer();
         m_lock.unlock();
         return;
     }
@@ -89,6 +112,7 @@ void sort_timer_lst::del_timer(util_timer *timer)
         head = head->next;
         head->prev = NULL;
         delete timer;
+        // show_timer();
         m_lock.unlock();
         return;
     }
@@ -97,20 +121,21 @@ void sort_timer_lst::del_timer(util_timer *timer)
         tail = tail->prev;
         tail->next = NULL;
         delete timer;
+        // show_timer();
         m_lock.unlock();
         return;
     }
     timer->prev->next = timer->next;
     timer->next->prev = timer->prev;
     delete timer;
+    // show_timer();
     m_lock.unlock();
 }
 void sort_timer_lst::tick()
 {
+    m_lock.lock();
     while (true)
     {
-        m_lock.lock();
-
         if (!head)
         {
             m_lock.unlock();
@@ -137,13 +162,15 @@ void sort_timer_lst::tick()
             tail = NULL;
         }
         tmp->next = tmp->prev = NULL;
-
-        m_lock.unlock();
+        tmp->cb_func = NULL;
 
         // 在不持锁的情况下执行回调，避免回调内再次操作定时器导致死锁
         tmp->cb_func(tmp->user_data);
+        // printf("tick删除旧的timer(%d)\n",tmp->user_data->sockfd);
+        // show_timer();
         delete tmp;
     }
+    m_lock.unlock();
 }
 
 void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)
@@ -250,7 +277,7 @@ void cb_func(client_data *user_data)
     epoll_ctl(Utils::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
     assert(user_data);
     //关闭文件描述符
-    close(user_data->sockfd);
+    // close(user_data->sockfd);
     //减少连接数
     http_conn::m_user_count--;
 }

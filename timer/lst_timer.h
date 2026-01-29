@@ -67,14 +67,17 @@ public:
     void del_timer(util_timer *timer);
     void tick();
 
+    util_timer *head;
+    util_timer *tail;
+    
+
 private:
     void add_timer(util_timer *timer, util_timer *lst_head);
-
+    void show_timer();
     // 保护内部链表(head/tail)的互斥量，保证所有对外接口在多线程下安全
     locker m_lock;
 
-    util_timer *head;
-    util_timer *tail;
+
 };
 
 class Utils

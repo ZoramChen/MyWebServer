@@ -179,8 +179,8 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     users_timer[connfd].timer = timer;
     //加入到升序定时器链表
     utils.m_timer_lst.add_timer(timer);
-
-    users[connfd].init(connfd, client_address, m_root, 1, 0, m_user, m_passWord, m_databaseName, timer);
+    // printf("有新的连接请求%d %p\n",connfd,(void*)timer);
+    users[connfd].init(connfd, client_address, m_root, 1, 0, m_user, m_passWord, m_databaseName, timer, &(utils.m_timer_lst));
 }
 
 //若有数据传输，则将定时器往后延迟3个单位
@@ -196,12 +196,15 @@ void WebServer::adjust_timer(util_timer *timer)
 
 void WebServer::deal_timer(util_timer *timer, int sockfd)
 {
+
+    int tmp_sockfd = timer->user_data->sockfd;
     timer->cb_func(&users_timer[sockfd]);
     if (timer)
-    {
+    {   
+        // printf("主线程删除 %p\n", (void*)timer);
         utils.m_timer_lst.del_timer(timer);
     }
-
+    close(tmp_sockfd);
     LOG_INFO("close fd %d", users_timer[sockfd].sockfd);
 }
 

@@ -110,22 +110,22 @@ void http_conn::close_conn(bool real_close)
         m_user_count--;
     }
 }
-
 //初始化连接,外部调用初始化套接字地址
 void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMode,
-                     int close_log, string user, string passwd, string sqlname, util_timer *time)
+                     int close_log, string user, string passwd, string sqlname, util_timer *time, sort_timer_lst *timer_lst)
 {
     m_sockfd = sockfd;
     m_address = addr;
 
+    m_TRIGMode = TRIGMode;
     addfd(m_epollfd, sockfd, true, m_TRIGMode);
     m_user_count++;
 
     timer=time;
+    timer_list=timer_lst;
 
     //当浏览器出现连接重置时，可能是网站根目录出错或http响应格式出错或者访问的文件中内容完全为空
     doc_root = root;
-    m_TRIGMode = TRIGMode;
     m_close_log = close_log;
 
     strcpy(sql_user, user.c_str());
@@ -449,10 +449,11 @@ http_conn::HTTP_CODE http_conn::do_request()
             strcat(sql_insert, "', '");
             strcat(sql_insert, password);
             strcat(sql_insert, "')");
-
+            
+            m_lock.lock();
             if (users.find(name) == users.end())
             {
-                m_lock.lock();
+                
                 int res = mysql_query(mysql, sql_insert);
                 users.insert(pair<string, string>(name, password));
                 m_lock.unlock();
@@ -462,8 +463,10 @@ http_conn::HTTP_CODE http_conn::do_request()
                 else
                     strcpy(m_url, "/registerError.html");
             }
-            else
+            else{
+                m_lock.lock();
                 strcpy(m_url, "/registerError.html");
+            }
         }
         //如果是登录，直接判断
         //若浏览器端输入的用户名和密码在表中可以查找到，返回1，否则返回0
@@ -741,13 +744,21 @@ void http_conn::process()
 
 void http_conn::deal_timer()
 {
+    if(!timer)
+    {
+        LOG_INFO("close fd %d", m_sockfd);
+        return;
+    }
+    int tmp_sockfd = timer->user_data->sockfd;
     if(timer->cb_func != NULL) {
         timer->cb_func(timer->user_data);
     }
     if (timer)
     {
-        utils.m_timer_lst.del_timer(timer);
+        // printf("子线程删除 %p\n", (void*)timer);
+        timer_list->del_timer(timer);
     }
+    close(tmp_sockfd);
 
     LOG_INFO("close fd %d", m_sockfd);
 }

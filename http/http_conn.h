@@ -84,7 +84,7 @@ public:
 
 public:
     //初始化套接字地址，函数内部会调用私有方法init()
-    void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname, util_timer *time);
+    void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname, util_timer *time, sort_timer_lst *timer_lst);
     //关闭http连接
     void close_conn(bool real_close = true);
     void process();
@@ -198,7 +198,7 @@ private:
     char sql_name[100];
 
     util_timer *timer;
-    Utils utils;
+    sort_timer_lst *timer_list;
 };
 
 #endif
