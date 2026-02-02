@@ -104,7 +104,6 @@ void http_conn::close_conn(bool real_close)
 {
     if (real_close && (m_sockfd != -1))
     {
-        printf("close %d\n", m_sockfd);
         removefd(m_epollfd, m_sockfd);
         m_sockfd = -1;
         m_user_count--;
@@ -132,6 +131,8 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMo
     strcpy(sql_passwd, passwd.c_str());
     strcpy(sql_name, sqlname.c_str());
 
+    client_ip_ = inet_ntoa(addr.sin_addr);
+
     init();
 }
 
@@ -156,6 +157,12 @@ void http_conn::init()
     cgi = 0;
     m_state = 0;
     // timer_flag = 0;
+
+    m_session_id = "";
+    m_is_logged_in = false;
+    memset(m_session_id_buf, '\0', 65);
+    m_has_session = false;
+    m_need_set_cookie = false;
 
     memset(m_read_buf, '\0', READ_BUFFER_SIZE);
     memset(m_write_buf, '\0', WRITE_BUFFER_SIZE);
@@ -328,6 +335,46 @@ http_conn::HTTP_CODE http_conn::parse_headers(char *text)
         text += strspn(text, " \t");
         m_host = text;
     }
+    else if (strncasecmp(text, "Cookie:", 7) == 0)
+    {
+        // text 形如 "Cookie: a=1; session_id=abcd...; b=2"
+        const char *p = text + 7;
+        p += strspn(p, " \t");
+        const char *sid = strcasestr(p, "session_id=");
+        if (sid)
+        {
+            sid += 11; // 跳过 "session_id="
+            size_t n = 0;
+            while (sid[n] && sid[n] != ';' && sid[n] != ' ' && n < 64)
+                n++;
+            // 只接受 32 位十六进制
+            if (n == 32)
+            {
+                bool ok = true;
+                // 确保session id是合法的
+                for (size_t i = 0; i < 32; ++i)
+                {
+                    char c = sid[i];
+                    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+                    {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (ok)
+                {
+                    memcpy(m_session_id_buf, sid, 32);
+                    m_session_id_buf[32] = '\0';
+                    m_has_session = true;
+                }
+            }
+        }
+        if (strlen(m_session_id_buf) > 0)
+        {
+            m_has_session = true;
+            m_session_id = std::string(m_session_id_buf);
+        }
+    }
     else
     {
         LOG_INFO("oop!unknow header: %s", text);
@@ -412,7 +459,30 @@ http_conn::HTTP_CODE http_conn::do_request()
     //printf("m_url:%s\n", m_url);
     const char *p = strrchr(m_url, '/');    // strrchr 是一个 C 标准库函数，用于在字符串中查找指定字符最后一次出现的位置。
 
-    //处理cgi 2：登录  3：注册
+
+    if (*(p + 1) != '0' && *(p + 1) != '1' && *(p + 1) != '2' && *(p + 1) != '3' && strcmp(p + 1, "judge.html") != 0)
+    {
+        if (m_has_session && validate_enhanced_session(m_session_id))
+        {
+            m_is_logged_in = true;
+            LOG_INFO("Valid session attempt: %s", m_session_id.c_str());
+        }
+        else
+        {
+            // 1. 记录日志
+            LOG_INFO("Invalid session attempt: %s", m_session_id.c_str());
+            // 验证失败时的处理
+            m_is_logged_in = false;
+            // 2. 清除无效的session
+            m_session_id.clear();
+            // 3. 可以重定向到登录页面并显示提示信息
+            strcpy(m_url, "/logTimeout.html");
+
+        }
+    }
+
+
+    //处理cgi
     if (cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3'))
     {
 
@@ -473,7 +543,18 @@ http_conn::HTTP_CODE http_conn::do_request()
         else if (*(p + 1) == '2')
         {
             if (users.find(name) != users.end() && users[name] == password)
-                strcpy(m_url, "/welcome.html");
+            {
+                if (create_enhanced_session(name))
+                {
+                    LOG_INFO("User %s logged in successfully from %s",
+                             name, client_ip_.c_str());
+                    strcpy(m_url, "/welcome.html");
+                }
+                else
+                {
+                    strcpy(m_url, "/logError.html");
+                }
+            }
             else
                 strcpy(m_url, "/logError.html");
         }
@@ -495,7 +576,7 @@ http_conn::HTTP_CODE http_conn::do_request()
 
         free(m_url_real);
     }
-    else if (*(p + 1) == '5')
+    else if (*(p + 1) == '5' && m_is_logged_in)
     {
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
         strcpy(m_url_real, "/picture.html");
@@ -503,7 +584,7 @@ http_conn::HTTP_CODE http_conn::do_request()
 
         free(m_url_real);
     }
-    else if (*(p + 1) == '6')
+    else if (*(p + 1) == '6' && m_is_logged_in)
     {
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
         strcpy(m_url_real, "/video.html");
@@ -511,7 +592,7 @@ http_conn::HTTP_CODE http_conn::do_request()
 
         free(m_url_real);
     }
-    else if (*(p + 1) == '7')
+    else if (*(p + 1) == '7' && m_is_logged_in)
     {
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
         strcpy(m_url_real, "/fans.html");
@@ -696,6 +777,11 @@ bool http_conn::process_write(HTTP_CODE ret)
             add_status_line(200, ok_200_title);
             if (m_file_stat.st_size != 0)
             {
+                if (m_need_set_cookie)
+                {
+                    add_response("Set-Cookie: session_id=%s; Path=/; HttpOnly; SamaSite=Lax\r\n", m_session_id.c_str());
+                    m_need_set_cookie = false;
+                }
                 add_headers(m_file_stat.st_size);
                 //第一个iovec指针指向响应报文缓冲区，长度指向m_write_idx
                 m_iv[0].iov_base = m_write_buf;
@@ -761,4 +847,34 @@ void http_conn::deal_timer()
     close(tmp_sockfd);
 
     LOG_INFO("close fd %d", m_sockfd);
+}
+
+
+
+bool http_conn::create_enhanced_session(const std::string &username)
+{
+    std::string session_id = SessionManager::instance().create_session(
+        username, client_ip_, ntohs(m_address.sin_port), user_agent_);
+
+    if (!session_id.empty())
+    {
+        m_session_id = session_id;
+        m_has_session = true;
+        m_need_set_cookie = true;
+        current_session_ = SessionManager::instance().get_session(session_id);
+        return true;
+    }
+    return false;
+}
+
+
+bool http_conn::validate_enhanced_session(const std::string &session_id)
+{
+    if (SessionManager::instance().validate_session(session_id, client_ip_, user_agent_))
+    {
+        current_session_ = SessionManager::instance().get_session(session_id);
+        m_is_logged_in = true;
+        return true;
+    }
+    return false;
 }

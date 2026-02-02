@@ -161,8 +161,6 @@ void sort_timer_lst::tick()
             // 链表为空时同步更新 tail
             tail = NULL;
         }
-        tmp->next = tmp->prev = NULL;
-        tmp->cb_func = NULL;
 
         // 在不持锁的情况下执行回调，避免回调内再次操作定时器导致死锁
         tmp->cb_func(tmp->user_data);

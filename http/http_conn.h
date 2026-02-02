@@ -20,11 +20,29 @@
 #include <sys/wait.h>
 #include <sys/uio.h>
 #include <map>
+#include <set>
 
 #include "../lock/locker.h"
 #include "../CGImysql/sql_connection_pool.h"
 #include "../timer/lst_timer.h"
 #include "../log/log.h"
+#include "../session/session.h"
+#include "../session/session_info.h"
+
+
+struct session_info
+{
+    std::string username;
+    time_t create_time;
+    time_t last_access;
+    bool is_valid;
+
+    session_info() : create_time(0), last_access(0), is_valid(false) {}
+    session_info(const std::string &user) : username(user), create_time(time(NULL)),
+                                            last_access(time(NULL)), is_valid(true) {}
+};
+
+
 
 class http_conn
 {
@@ -199,6 +217,20 @@ private:
 
     util_timer *timer;
     sort_timer_lst *timer_list;
+
+    // session  + cookie
+    std::string m_session_id;
+    bool m_is_logged_in;
+    char m_session_id_buf[65];
+    bool m_has_session;
+    bool m_need_set_cookie;
+
+    // 关于session id生成，验证以及管理模块
+    enhanced_session_info current_session_;
+    std::string client_ip_;
+    std::string user_agent_;
+    bool create_enhanced_session(const std::string &username);
+    bool validate_enhanced_session(const std::string &session_id);
 };
 
 #endif
