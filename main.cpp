@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     //初始化
     server.init(config.PORT, user, passwd, databasename, config.LOGWrite, 
                 config.OPT_LINGER, config.TRIGMode,  config.sql_num,  config.thread_num, 
-                config.close_log, config.actor_model);
+                config.close_log, config.actor_model, config.use_ssl, config.cert_file, config.private_key_file);
     
 
     //日志

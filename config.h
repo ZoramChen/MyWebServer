@@ -42,6 +42,15 @@ public:
 
     //并发模型选择
     int actor_model;
+
+    // 是否使用ssl / tls协议
+    int use_ssl;
+
+    // 私钥文件.pem路径
+    std::string private_key_file;
+
+    // 私钥文件的证书.pem路径
+    std::string cert_file;
 };
 
 #endif

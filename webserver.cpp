@@ -29,7 +29,8 @@ WebServer::~WebServer()
 }
 
 void WebServer::init(int port, string user, string passWord, string databaseName, int log_write, 
-                     int opt_linger, int trigmode, int sql_num, int thread_num, int close_log, int actor_model)
+                     int opt_linger, int trigmode, int sql_num, int thread_num, int close_log, int actor_model,
+                     int use_ssl, string cert_file, string private_key_file)
 {
     m_port = port;
     m_user = user;
@@ -42,6 +43,21 @@ void WebServer::init(int port, string user, string passWord, string databaseName
     m_TRIGMode = trigmode;
     m_close_log = close_log;
     m_actormodel = actor_model;
+
+    m_use_ssl = use_ssl;
+    if (m_use_ssl)
+    {
+        try
+        {
+            opensslContext_ = std::make_shared<OpenSSLContext>(cert_file, private_key_file);
+            printf("Initialize SSL/TLS is successfully!\n");
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Failed to initialize SSL: " << e.what() << std::endl;
+            exit(EXIT_FAILURE);
+        }
+    }
 }
 
 void WebServer::trig_mode()
@@ -180,7 +196,9 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     //加入到升序定时器链表
     utils.m_timer_lst.add_timer(timer);
     // printf("有新的连接请求%d %p\n",connfd,(void*)timer);
-    users[connfd].init(connfd, client_address, m_root, 1, 0, m_user, m_passWord, m_databaseName, timer, &(utils.m_timer_lst));
+
+    users[connfd].init(connfd, client_address, m_root, 1, 0, m_user, m_passWord, m_databaseName, 
+        timer, &(utils.m_timer_lst), m_use_ssl, fd_sslwrappers[connfd]);
 }
 
 //若有数据传输，则将定时器往后延迟3个单位
@@ -198,6 +216,10 @@ void WebServer::deal_timer(util_timer *timer, int sockfd)
 {
 
     int tmp_sockfd = timer->user_data->sockfd;
+    if (fd_sslwrappers.find(sockfd) != fd_sslwrappers.end())
+    {
+        fd_sslwrappers.erase(sockfd);
+    }
     timer->cb_func(&users_timer[sockfd]);
     if (timer)
     {   
@@ -227,6 +249,23 @@ bool WebServer::dealclientdata()
             LOG_ERROR("%s", "Internal server busy");
             return false;
         }
+
+        if (m_use_ssl)
+        {
+            shared_ptr<SSLWrapper> ssl_wrapper = make_shared<SSLWrapper>(connfd, opensslContext_->get());
+            // 设置SSL模式为非阻塞
+            SSL_set_mode(ssl_wrapper->getSSL(), SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+            // 如果ssl没有建立成功就直接退出
+            if (ssl_wrapper->accept() <= 0)
+            {
+                LOG_ERROR("%s %d SSL/TLS connect failed!", __FILE__, __LINE__);
+                return false;
+            }
+            fd_sslwrappers[connfd] = ssl_wrapper;
+        }
+
+
+
         //添加定时器，同时初始化相关资源
         timer(connfd, client_address);
 
@@ -252,6 +291,21 @@ bool WebServer::dealclientdata()
                 LOG_ERROR("%s", "Internal server busy");
                 break;
             }
+
+            if (m_use_ssl)
+            {
+                shared_ptr<SSLWrapper> ssl_wrapper = make_shared<SSLWrapper>(connfd, opensslContext_->get());
+                // 设置SSL模式为非阻塞
+                SSL_set_mode(ssl_wrapper->getSSL(), SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+                // 如果ssl没有建立成功就直接退出
+                if (ssl_wrapper->accept() <= 0)
+                {
+                    LOG_ERROR("%s %d SSL/TLS connect failed!", __FILE__, __LINE__);
+                    return false;
+                }
+                fd_sslwrappers[connfd] = ssl_wrapper;
+            }
+
             timer(connfd, client_address);
         }
         return false;

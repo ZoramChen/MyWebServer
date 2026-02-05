@@ -21,6 +21,7 @@
 #include <sys/uio.h>
 #include <map>
 #include <set>
+#include <memory>
 
 #include "../lock/locker.h"
 #include "../CGImysql/sql_connection_pool.h"
@@ -28,6 +29,7 @@
 #include "../log/log.h"
 #include "../session/session.h"
 #include "../session/session_info.h"
+#include "../ssl/ssl_wrapper.h"
 
 
 struct session_info
@@ -102,7 +104,9 @@ public:
 
 public:
     //初始化套接字地址，函数内部会调用私有方法init()
-    void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname, util_timer *time, sort_timer_lst *timer_lst);
+    void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname, 
+        util_timer *time, sort_timer_lst *timer_lst,
+        int use_ssl, shared_ptr<SSLWrapper> ssl_wrapper);
     //关闭http连接
     void close_conn(bool real_close = true);
     void process();
@@ -231,6 +235,12 @@ private:
     std::string user_agent_;
     bool create_enhanced_session(const std::string &username);
     bool validate_enhanced_session(const std::string &session_id);
+
+    // ssl/tls协议
+    shared_ptr<SSLWrapper> m_ssl_wrapper; // 使用智能指针管理
+    bool is_use_ssl;
+    bool is_connect_success;
+
 };
 
 #endif

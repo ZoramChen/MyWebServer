@@ -30,11 +30,21 @@ Config::Config(){
 
     //并发模型,默认是proactor
     actor_model = 0;
+
+    //使用ssl/tls协议，默认使用
+    use_ssl = 0;
+
+    // 私钥文件.pem路径
+    private_key_file = "/workplace/TinyWebServer_bak/server.key";
+
+    // 私钥文件的证书.pem路径
+    cert_file = "/workplace/TinyWebServer_bak/server.crt";
+
 }
 
 void Config::parse_arg(int argc, char*argv[]){
     int opt;
-    const char *str = "p:l:m:o:s:t:c:a:";
+    const char *str = "p:l:m:o:q:t:c:a:s:";
     while ((opt = getopt(argc, argv, str)) != -1)
     {
         switch (opt)
@@ -59,7 +69,7 @@ void Config::parse_arg(int argc, char*argv[]){
             OPT_LINGER = atoi(optarg);
             break;
         }
-        case 's':
+        case 'q':
         {
             sql_num = atoi(optarg);
             break;
@@ -77,6 +87,11 @@ void Config::parse_arg(int argc, char*argv[]){
         case 'a':
         {
             actor_model = atoi(optarg);
+            break;
+        }
+        case 's':
+        {
+            use_ssl = atoi(optarg);
             break;
         }
         default:

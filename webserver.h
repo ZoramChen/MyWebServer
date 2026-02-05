@@ -14,6 +14,8 @@
 
 #include "./threadpool/threadpool.h"
 #include "./http/http_conn.h"
+#include "./ssl/ssl_context.h"
+#include "./ssl/ssl_wrapper.h"
 
 const int MAX_FD = 65536;           //最大文件描述符
 const int MAX_EVENT_NUMBER = 10000; //最大事件数
@@ -27,7 +29,8 @@ public:
 
     void init(int port , string user, string passWord, string databaseName,
               int log_write , int opt_linger, int trigmode, int sql_num,
-              int thread_num, int close_log, int actor_model);
+              int thread_num, int close_log, int actor_model,
+              int use_ssl, string cert_file, string private_key_file);
 
     void thread_pool();
     void sql_pool();
@@ -78,5 +81,13 @@ public:
     //定时器相关
     client_data *users_timer;
     Utils utils;
+
+    // SSL/TLS协议
+    int m_use_ssl;
+
+    shared_ptr<OpenSSLContext> opensslContext_;
+    map<int, shared_ptr<SSLWrapper>> fd_sslwrappers;
+
+
 };
 #endif

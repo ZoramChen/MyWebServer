@@ -104,6 +104,11 @@ void http_conn::close_conn(bool real_close)
 {
     if (real_close && (m_sockfd != -1))
     {
+        if(m_ssl_wrapper)
+        {
+            m_ssl_wrapper->shutdown();
+            m_ssl_wrapper.reset();
+        }
         removefd(m_epollfd, m_sockfd);
         m_sockfd = -1;
         m_user_count--;
@@ -111,7 +116,9 @@ void http_conn::close_conn(bool real_close)
 }
 //初始化连接,外部调用初始化套接字地址
 void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMode,
-                     int close_log, string user, string passwd, string sqlname, util_timer *time, sort_timer_lst *timer_lst)
+                     int close_log, string user, string passwd, string sqlname, 
+                     util_timer *time, sort_timer_lst *timer_lst,
+                     int use_ssl, shared_ptr<SSLWrapper> ssl_wrapper)
 {
     m_sockfd = sockfd;
     m_address = addr;
@@ -132,6 +139,15 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMo
     strcpy(sql_name, sqlname.c_str());
 
     client_ip_ = inet_ntoa(addr.sin_addr);
+
+    is_use_ssl = use_ssl;
+    m_ssl_wrapper = ssl_wrapper;
+
+    if (is_use_ssl)
+        is_connect_success = true;
+    else
+        is_connect_success = false;
+
 
     init();
 }
@@ -219,7 +235,21 @@ bool http_conn::read_once()
     //LT读取数据
     if (0 == m_TRIGMode)
     {
-        bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
+        if (is_use_ssl && is_connect_success)
+        {
+            try
+            {
+                bytes_read = m_ssl_wrapper->read(m_read_buf + m_read_idx,
+                                                READ_BUFFER_SIZE - m_read_idx);
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << __FILE__ << " " << __LINE__ << " " << e.what() << '\n';
+                LOG_ERROR("%s %d %s", __FILE__, __LINE__, e.what());
+            }
+        }
+        else
+            bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
         m_read_idx += bytes_read;
 
         if (bytes_read <= 0)
@@ -234,7 +264,21 @@ bool http_conn::read_once()
     {
         while (true)
         {
-            bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
+            if (is_use_ssl && is_connect_success)
+            {
+                try
+                {
+                    bytes_read = m_ssl_wrapper->read(m_read_buf + m_read_idx,
+                                                    READ_BUFFER_SIZE - m_read_idx);
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << __FILE__ << " " << __LINE__ << " " << e.what() << '\n';
+                    LOG_ERROR("%s %d %s", __FILE__, __LINE__, e.what());
+                }
+            }
+            else
+                bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
             if (bytes_read == -1)
             {
                 //当前无数据可读
@@ -513,7 +557,7 @@ http_conn::HTTP_CODE http_conn::do_request()
             //如果是注册，先检测数据库中是否有重名的
             //没有重名的，进行增加数据
             char *sql_insert = (char *)malloc(sizeof(char) * 200);
-            strcpy(sql_insert, "INSERT INTO user(username, passwd) VALUES(");
+            strcpy(sql_insert, "INSERT INTO user(username, passwd) VALUESn(");
             strcat(sql_insert, "'");
             strcat(sql_insert, name);
             strcat(sql_insert, "', '");
@@ -534,7 +578,7 @@ http_conn::HTTP_CODE http_conn::do_request()
                     strcpy(m_url, "/registerError.html");
             }
             else{
-                m_lock.lock();
+                m_lock.unlock();
                 strcpy(m_url, "/registerError.html");
             }
         }
@@ -642,7 +686,25 @@ bool http_conn::write()
 
     while (1)
     {
-        temp = writev(m_sockfd, m_iv, m_iv_count);
+
+        if (is_use_ssl && is_connect_success)
+        {
+            try
+            {
+                temp = m_ssl_wrapper->write(m_iv, m_iv_count);
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << __FILE__ << " " << __LINE__ << " " << e.what() << '\n';
+                LOG_ERROR("%s %d %s", __FILE__, __LINE__, e.what());
+            }
+            bytes_to_send -= temp;
+        }
+        else
+        {
+            temp = writev(m_sockfd, m_iv, m_iv_count);
+        }
+
 
         if (temp < 0)
         {
