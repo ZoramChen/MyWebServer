@@ -1,4 +1,5 @@
 #include "http_conn.h"
+#include "../log/log.h"
 
 #include <mysql/mysql.h>
 #include <fstream>
@@ -116,7 +117,7 @@ void http_conn::close_conn(bool real_close)
 }
 //初始化连接,外部调用初始化套接字地址
 void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMode,
-                     int close_log, string user, string passwd, string sqlname, 
+                     string user, string passwd, string sqlname, 
                      util_timer *time, sort_timer_lst *timer_lst,
                      int use_ssl, shared_ptr<SSLWrapper> ssl_wrapper)
 {
@@ -132,7 +133,6 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMo
 
     //当浏览器出现连接重置时，可能是网站根目录出错或http响应格式出错或者访问的文件中内容完全为空
     doc_root = root;
-    m_close_log = close_log;
 
     strcpy(sql_user, user.c_str());
     strcpy(sql_passwd, passwd.c_str());

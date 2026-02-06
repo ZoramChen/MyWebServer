@@ -29,9 +29,8 @@ public:
 
     void init(int port , string user, string passWord, string databaseName,
               int log_write , int opt_linger, int trigmode, int sql_num,
-              int thread_num, int close_log, int actor_model,
-              int use_ssl, string cert_file, string private_key_file);
-
+              int thread_num, int close_log, int actor_model);
+    void init_ssl(int use_ssl, string cert_file, string private_key_file);
     void thread_pool();
     void sql_pool();
     void log_write();
@@ -51,7 +50,6 @@ public:
     int m_port;  //端口号
     char *m_root;  //root的绝对路径
     int m_log_write;
-    int m_close_log;
     int m_actormodel;   //反应堆模型 0:Proactor模型   1:Reactor模型
 
     int m_pipefd[2];

@@ -1,4 +1,5 @@
 #include "webserver.h"
+#include "./log/log.h"
 
 WebServer::WebServer()
 {
@@ -29,8 +30,7 @@ WebServer::~WebServer()
 }
 
 void WebServer::init(int port, string user, string passWord, string databaseName, int log_write, 
-                     int opt_linger, int trigmode, int sql_num, int thread_num, int close_log, int actor_model,
-                     int use_ssl, string cert_file, string private_key_file)
+                     int opt_linger, int trigmode, int sql_num, int thread_num, int close_log, int actor_model)
 {
     m_port = port;
     m_user = user;
@@ -41,22 +41,23 @@ void WebServer::init(int port, string user, string passWord, string databaseName
     m_log_write = log_write;
     m_OPT_LINGER = opt_linger;
     m_TRIGMode = trigmode;
-    m_close_log = close_log;
     m_actormodel = actor_model;
 
+    global_close_log = close_log;
+}
+
+void WebServer::init_ssl(int use_ssl, string cert_file, string private_key_file)
+{
     m_use_ssl = use_ssl;
-    if (m_use_ssl)
+    try
     {
-        try
-        {
-            opensslContext_ = std::make_shared<OpenSSLContext>(cert_file, private_key_file);
-            printf("Initialize SSL/TLS is successfully!\n");
-        }
-        catch (const std::exception &e)
-        {
-            std::cerr << "Failed to initialize SSL: " << e.what() << std::endl;
-            exit(EXIT_FAILURE);
-        }
+        opensslContext_ = std::make_shared<OpenSSLContext>(cert_file, private_key_file);
+        LOG_INFO("Initialize SSL/TLS is successfully!\n");
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR("Failed to initialize SSL: %s\n", e.what());
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -90,13 +91,13 @@ void WebServer::trig_mode()
 
 void WebServer::log_write()
 {
-    if (0 == m_close_log)
+    if (0 == global_close_log)
     {
         //初始化日志
         if (1 == m_log_write)  //异步
-            Log::get_instance()->init("./ServerLog", m_close_log, 2000, 800000, 800);
+            Log::get_instance()->init("./ServerLog", 2000, 800000, 800);
         else  //同步
-            Log::get_instance()->init("./ServerLog", m_close_log, 2000, 800000, 0);
+            Log::get_instance()->init("./ServerLog", 2000, 800000, 0);
     }
 }
 
@@ -104,7 +105,7 @@ void WebServer::sql_pool()
 {
     //初始化数据库连接池
     m_connPool = connection_pool::GetInstance();
-    m_connPool->init("127.0.0.1", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
+    m_connPool->init("127.0.0.1", m_user, m_passWord, m_databaseName, 3306, m_sql_num);
 
     //初始化数据库读取表
     users->initmysql_result(m_connPool);
@@ -197,7 +198,7 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     utils.m_timer_lst.add_timer(timer);
     // printf("有新的连接请求%d %p\n",connfd,(void*)timer);
 
-    users[connfd].init(connfd, client_address, m_root, 1, 0, m_user, m_passWord, m_databaseName, 
+    users[connfd].init(connfd, client_address, m_root, 1, m_user, m_passWord, m_databaseName, 
         timer, &(utils.m_timer_lst), m_use_ssl, fd_sslwrappers[connfd]);
 }
 

@@ -120,11 +120,11 @@ void SSLWrapper::print_detailed_ssl_errors(SSL *ssl, int ret)
     {
         ERR_error_string_n(e, buf, sizeof(buf));
 
-        // ⭐ OpenSSL 3.x：远端证书不信任 alert（忽略）
+        // OpenSSL 3.x：远端证书不信任 alert（忽略）
         if (strstr(buf, "certificate unknown") != nullptr)
             continue;
 
-        std::cerr << "OpenSSL: " << buf << "\n";
+        LOG_ERROR("OpenSSL: %s\n", buf);
     }
 }
 

@@ -14,6 +14,7 @@
 #include <sys/uio.h>
 #include <algorithm>
 
+#include "../log/log.h"
 class SSLWrapper
 {
 public:

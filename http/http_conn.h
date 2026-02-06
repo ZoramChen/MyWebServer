@@ -26,7 +26,6 @@
 #include "../lock/locker.h"
 #include "../CGImysql/sql_connection_pool.h"
 #include "../timer/lst_timer.h"
-#include "../log/log.h"
 #include "../session/session.h"
 #include "../session/session_info.h"
 #include "../ssl/ssl_wrapper.h"
@@ -104,7 +103,7 @@ public:
 
 public:
     //初始化套接字地址，函数内部会调用私有方法init()
-    void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname, 
+    void init(int sockfd, const sockaddr_in &addr, char *, int, string user, string passwd, string sqlname, 
         util_timer *time, sort_timer_lst *timer_lst,
         int use_ssl, shared_ptr<SSLWrapper> ssl_wrapper);
     //关闭http连接
@@ -213,7 +212,6 @@ private:
 
     map<string, string> m_users;
     int m_TRIGMode;   // 触发模式
-    int m_close_log;
 
     char sql_user[100];
     char sql_passwd[100];

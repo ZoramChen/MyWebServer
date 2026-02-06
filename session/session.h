@@ -19,9 +19,8 @@ private:
     std::map<std::string, enhanced_session_info> sessions_;
     locker m_lock;
     std::map<std::string, std::string> user_to_session_; // 用户到session的映射
-    int m_close_log; //关闭日志（1-关闭 0-未关闭）
     // 私有默认构造函数
-    SessionManager() : m_close_log(0) // 2. 构造函数初始化 m_close_log，默认开启日志
+    SessionManager()
     {
     }
 
@@ -32,21 +31,6 @@ public:
     {
         static SessionManager instance;
         return instance;
-    }
-
-    void set_close_log(int flag)
-    {
-        if (flag != 0 && flag != 1)
-        {
-            m_close_log = 0;
-            return;
-        }
-        m_close_log = flag;
-    }
-
-    int get_close_log() const
-    {
-        return m_close_log;
     }
 
 
