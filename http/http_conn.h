@@ -29,6 +29,7 @@
 #include "../session/session.h"
 #include "../session/session_info.h"
 #include "../ssl/ssl_wrapper.h"
+#include "upload_file.h"
 
 
 struct session_info
@@ -51,7 +52,7 @@ public:
     //设置读取文件的名称m_real_file大小为200
     static const int FILENAME_LEN = 200;
     //设置读缓冲区m_read_buf大小
-    static const int READ_BUFFER_SIZE = 2048;
+    static const int READ_BUFFER_SIZE = 1024 * 64;
     //设置写缓冲区m_write_buf大小
     static const int WRITE_BUFFER_SIZE = 1024;
     //报文的请求方法，本项目只用到GET和POST
@@ -82,6 +83,7 @@ public:
     {
         NO_REQUEST,
         GET_REQUEST,
+        POST_REQUEST,
         BAD_REQUEST,
         NO_RESOURCE,
         FORBIDDEN_REQUEST,
@@ -238,6 +240,16 @@ private:
     shared_ptr<SSLWrapper> m_ssl_wrapper; // 使用智能指针管理
     bool is_use_ssl;
     bool is_connect_success;
+
+    // 上传/下载文件
+    std::string m_header_value;
+    char *m_method_override;
+    int chunk_header;
+    int total_header;
+    char *m_upload_filename;
+    long int m_file_size;
+    std::string m_download;
+
 
 };
 

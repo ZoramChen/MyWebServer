@@ -180,6 +180,8 @@ void http_conn::init()
     m_has_session = false;
     m_need_set_cookie = false;
 
+    m_file_size = 0;
+
     memset(m_read_buf, '\0', READ_BUFFER_SIZE);
     memset(m_write_buf, '\0', WRITE_BUFFER_SIZE);
     memset(m_real_file, '\0', FILENAME_LEN);
@@ -190,7 +192,8 @@ void http_conn::init()
 http_conn::LINE_STATUS http_conn::parse_line()
 {
     char temp;
-    for (; m_checked_idx < m_read_idx; ++m_checked_idx)
+    // m_check_state != CHECK_STATE_CONTENT的作用是当read_once函数一次没有完整读完请求内容时，防止五度消息体内容以及修改
+    for (; m_checked_idx < m_read_idx && m_check_state != CHECK_STATE_CONTENT; ++m_checked_idx)
     {
         temp = m_read_buf[m_checked_idx];
         if (temp == '\r')
@@ -314,6 +317,11 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
         m_method = POST;
         cgi = 1;
     }
+    else if (strcasecmp(method, "PUT") == 0)
+    {
+        m_method = PUT;
+        cgi = 1;
+    }
     else
         return BAD_REQUEST;
     m_url += strspn(m_url, " \t");  //跳过 URL 前的空格
@@ -379,6 +387,44 @@ http_conn::HTTP_CODE http_conn::parse_headers(char *text)
         text += strspn(text, " \t");
         m_host = text;
     }
+    else if (strncasecmp(text, "X-HTTP-Method-Override:", 22) == 0)
+    {
+        text += 22;
+        // 跳过": ""
+        text += 2;
+        text += strspn(text, " \t");
+        // 存储方法覆盖值
+        m_method_override = text;
+        LOG_INFO("Got method override: %s", text);
+    }
+    else if (strncasecmp(text, "X-Chunk-Number:", 15) == 0)
+    {
+        text += 15;
+        text += strspn(text, " \t");
+        chunk_header = atoi(text);
+        LOG_INFO("Got chunk number: %d", chunk_header);
+    }
+    else if (strncasecmp(text, "X-Total-Chunks:", 15) == 0)
+    {
+        text += 15;
+        text += strspn(text, " \t");
+        total_header = atoi(text);
+        LOG_INFO("Got total chunks: %d", total_header);
+    }
+    else if (strncasecmp(text, "X-File-Name:", 12) == 0)
+    {
+        text += 12;
+        text += strspn(text, " \t");
+        m_upload_filename = text;
+        LOG_INFO("Got upload filename: %s", m_upload_filename);
+    }
+    else if (strncasecmp(text, "X-File-Size:", 12) == 0)
+    {
+        text += 12;
+        text += strspn(text, " \t");
+        m_file_size = atol(text);
+        LOG_INFO("Got file size: %ld", m_file_size);
+    } 
     else if (strncasecmp(text, "Cookie:", 7) == 0)
     {
         // text 形如 "Cookie: a=1; session_id=abcd...; b=2"
@@ -521,7 +567,6 @@ http_conn::HTTP_CODE http_conn::do_request()
             m_session_id.clear();
             // 3. 可以重定向到登录页面并显示提示信息
             strcpy(m_url, "/logTimeout.html");
-
         }
     }
 
@@ -643,6 +688,46 @@ http_conn::HTTP_CODE http_conn::do_request()
         strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
 
         free(m_url_real);
+    }
+    else if (*(p + 1) == '8' && m_is_logged_in)
+    {
+        char *m_url_real = (char *)malloc(sizeof(char) * 200);
+        strcpy(m_url_real, "/upload.html");
+        strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
+
+        free(m_url_real);
+    }else if (*(p + 1) == '9' && m_is_logged_in)
+    {
+        char *filename = NULL;
+        filename = m_url + 2;
+        printf("general upload file\n");
+        UploadFile up_file(this->doc_root, 1);
+        int chunk_num = chunk_header, total_chunks = total_header;
+
+        // 保存分块或完整文件
+        bool save_result = false;
+        bool is_merge_file = false;
+        if (total_chunks > 1)
+        {
+            // 分块上传文件
+            save_result = up_file.save_uploaded_chunk(filename, m_string, m_content_length,
+                                                      chunk_num, total_chunks);
+
+            // 如果是最后一个分块，合并文件
+            if (save_result && chunk_num == total_chunks - 1)
+            {
+                save_result = up_file.merge_uploaded_file(filename, total_chunks);
+                is_merge_file = true;
+            }
+        }
+        else
+        {
+            // 单块直接保存
+            save_result = up_file.save_uploaded_file(filename, m_string, m_content_length);
+        }
+
+        return POST_REQUEST;
+
     }
     else
         strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);
@@ -831,6 +916,14 @@ bool http_conn::process_write(HTTP_CODE ret)
             add_status_line(403, error_403_title);
             add_headers(strlen(error_403_form));
             if (!add_content(error_403_form))
+                return false;
+            break;
+        }
+        case POST_REQUEST:
+        {
+            add_status_line(200, ok_200_title);
+            add_headers(0);
+            if (!add_content(""))
                 return false;
             break;
         }
