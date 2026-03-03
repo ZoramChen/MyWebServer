@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件下载 - WebServer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #ff7e5f;
+            --secondary-color: #feb47b;
+            --accent-color: #ff6b6b;
+            --light-color: #fff9f5;
+            --dark-color: #553c3c;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --error-color: #f44336;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #333;
+            padding: 20px;
+        }
+
+        .header {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 15px 25px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo i {
+            font-size: 28px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-link {
+            color: var(--dark-color);
+            text-decoration: none;
+            font-weight: 500;
+            padding: 8px 15px;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover {
+            background-color: rgba(255, 126, 95, 0.1);
+            color: var(--primary-color);
+        }
+
+        .download-container {
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+            padding: 40px;
+            width: 100%;
+            max-width: 900px;
+            animation: fadeIn 0.6s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h2 {
+            color: var(--primary-color);
+            font-size: 32px;
+            margin-bottom: 10px;
+            font-weight: 700;
+            position: relative;
+            display: inline-block;
+            text-align: center;
+            width: 100%;
+        }
+
+        h2::after {
+            content: "";
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border-radius: 4px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--dark-color);
+            font-size: 16px;
+            margin-bottom: 30px;
+            opacity: 0.8;
+        }
+
+        .file-list {
+            width: 100%;
+            margin: 30px 0;
+        }
+
+        .file-header {
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr auto;
+            gap: 15px;
+            padding: 15px 20px;
+            background-color: var(--light-color);
+            border-radius: 10px;
+            font-weight: 600;
+            color: var(--dark-color);
+            margin-bottom: 15px;
+        }
+
+        .file-item {
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr auto;
+            gap: 15px;
+            align-items: center;
+            padding: 18px 20px;
+            margin-bottom: 12px;
+            background-color: var(--light-color);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+
+        .file-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            border-left-color: var(--primary-color);
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: var(--dark-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-icon {
+            color: var(--primary-color);
+            font-size: 20px;
+        }
+
+        .file-size,
+        .file-date {
+            color: var(--dark-color);
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        .download-btn {
+            padding: 10px 18px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 10px rgba(255, 126, 95, 0.3);
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(255, 126, 95, 0.4);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 0;
+            color: var(--dark-color);
+        }
+
+        .empty-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+            color: var(--primary-color);
+        }
+
+        .empty-text {
+            font-size: 18px;
+            margin-bottom: 25px;
+        }
+
+        .refresh-btn {
+            margin-top: 30px;
+            padding: 12px 25px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(255, 126, 95, 0.3);
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 126, 95, 0.4);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--dark-color);
+            font-size: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 126, 95, 0.2);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--error-color);
+            background-color: rgba(244, 67, 54, 0.1);
+            border-radius: 10px;
+            border-left: 4px solid var(--error-color);
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 14px;
+            color: var(--dark-color);
+            opacity: 0.8;
+            text-align: center;
+            max-width: 900px;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 12px;
+        }
+
+        .file-count {
+            margin-top: 20px;
+            text-align: center;
+            color: var(--dark-color);
+            opacity: 0.7;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .download-container {
+                padding: 25px;
+            }
+
+            .file-header {
+                display: none;
+            }
+
+            .file-item {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                text-align: center;
+            }
+
+            .file-name {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 顶部导航栏 -->
+    <div class="header">
+        <div class="logo">
+            <i class="fas fa-server"></i>
+            <span>WebServer 控制面板</span>
+        </div>
+        <div class="nav-links">
+            <a href="welcome.html" class="nav-link"><i class="fas fa-home"></i> 首页</a>
+            <a href="8upload.html" class="nav-link"><i class="fas fa-upload"></i> 文件上传</a>
+            <!-- 已删除：图像分类、目标检测、语义分割三个导航按钮 -->
+        </div>
+    </div>
+
+    <div class="download-container">
+        <h2>文件下载中心</h2>
+        <p class="subtitle">安全可靠的文件下载服务，支持多种格式</p>
+
+        <div class="file-list" id="fileList">
+            <!-- 文件列表将通过JavaScript动态加载 -->
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>正在加载文件列表...</p>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <button class="refresh-btn" onclick="loadFiles()">
+                <i class="fas fa-sync-alt"></i>
+                <span>刷新列表</span>
+            </button>
+        </div>
+
+        <div class="file-count" id="fileCount"></div>
+
+        <div class="footer">
+            <p>© 2023 WebServer 文件下载服务 | 版本 2.0</p>
+            <p>点击下载按钮获取您需要的文件</p>
+        </div>
+    </div>
+
+    <script>
+        // 根据不同单位计算当前文件大小
+        function formatFileSize(bytes) {
+            if (typeof bytes !== 'number' || bytes < 0) return '未知大小';
+            if (bytes === 0) return '0 Bytes';
+
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const k = 1024;
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+            // 保留2位小数，并添加单位
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + units[i];
+        }
+
+        // 格式化日期
+        function formatDate(dateString) {
+            if (!dateString || dateString === '未知') return '未知日期';
+
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            } catch (e) {
+                return dateString;
+            }
+        }
+
+        // 获取文件图标
+        function getFileIcon(filename) {
+            const extension = filename.split('.').pop().toLowerCase();
+            const iconMap = {
+                'pdf': 'file-pdf',
+                'doc': 'file-word',
+                'docx': 'file-word',
+                'xls': 'file-excel',
+                'xlsx': 'file-excel',
+                'ppt': 'file-powerpoint',
+                'pptx': 'file-powerpoint',
+                'zip': 'file-archive',
+                'rar': 'file-archive',
+                '7z': 'file-archive',
+                'jpg': 'file-image',
+                'jpeg': 'file-image',
+                'png': 'file-image',
+                'gif': 'file-image',
+                'txt': 'file-alt',
+                'mp3': 'file-audio',
+                'mp4': 'file-video',
+                'avi': 'file-video',
+                'mkv': 'file-video'
+            };
+
+            return iconMap[extension] || 'file';
+        }
+
+        // 加载所有已上传的文件
+        function loadFiles() {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>正在加载文件列表...</p>
+                </div>
+            `;
+
+            fetch("/a") // 发起请求
+                .then(res => { // 处理响应
+                    if (!res.ok) throw new Error('获取列表失败: ' + res.status);
+                    return res.text(); // 先获取文本用于调试
+                })
+                .then(text => { // 处理数据
+                    console.log("服务器响应:", text);
+                    const files = JSON.parse(text);
+
+                    if (!Array.isArray(files)) {
+                        throw new Error('无效的文件列表格式');
+                    }
+
+                    fileList.innerHTML = '';
+
+                    if (files.length === 0) {
+                        fileList.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-icon">
+                                    <i class="far fa-folder-open"></i>
+                                </div>
+                                <p class="empty-text">暂无文件可供下载</p>
+                                <p>请先上传文件到服务器</p>
+                            </div>
+                        `;
+                        document.getElementById('fileCount').textContent = '';
+                        return;
+                    }
+
+                    // 添加文件列表头部
+                    const header = document.createElement('div');
+                    header.className = 'file-header';
+                    header.innerHTML = `
+                        <div>文件名</div>
+                        <div>大小</div>
+                        <div>修改日期</div>
+                        <div>操作</div>
+                    `;
+                    fileList.appendChild(header);
+
+                    // 添加文件项
+                    files.forEach(file => {
+                        // 处理简单字符串数组或对象数组
+                        const fileInfo = {
+                            name: typeof file === 'string' ? file : file.name || '未知文件',
+                            size: file.size || 0,
+                            date: file.lastModified || file.date || '未知'
+                        };
+
+                        const item = document.createElement('div');
+                        item.className = 'file-item';
+                        item.innerHTML = `
+                            <div class="file-name">
+                                <i class="far fa-${getFileIcon(fileInfo.name)} file-icon"></i>
+                                <span>${fileInfo.name}</span>
+                            </div>
+                            <div class="file-size">${formatFileSize(fileInfo.size)}</div>
+                            <div class="file-date">${formatDate(fileInfo.date)}</div>
+                            <a href="/9${encodeURIComponent(fileInfo.name)}" class="download-btn">
+                                <i class="fas fa-download"></i>
+                                <span>下载</span>
+                            </a>
+                        `;
+                        fileList.appendChild(item);
+                    });
+
+                    // 更新文件计数
+                    document.getElementById('fileCount').textContent = `共找到 ${files.length} 个文件`;
+                })
+                .catch(err => {
+                    console.error('加载文件列表失败:', err);
+                    // 加载失败时的渲染效果
+                    fileList.innerHTML = `
+                        <div class="error">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <p>加载失败: ${err.message}</p>
+                            <button class="refresh-btn" onclick="loadFiles()" style="margin-top: 15px;">
+                                <i class="fas fa-sync-alt"></i>
+                                <span>重试</span>
+                            </button>
+                        </div>
+                    `;
+                    document.getElementById('fileCount').textContent = '';
+                });
+        }
+
+        // 页面加载时自动获取文件列表
+        document.addEventListener('DOMContentLoaded', loadFiles);
+    </script>
+</body>
+
+</html>

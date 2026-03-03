@@ -8,11 +8,10 @@ bool UploadFile::is_valid_path(const char *path)
            strstr(path, "%2e%2e") == nullptr;
 }
 
-bool UploadFile::save_uploaded_file(const char *filename, const char *data, size_t len)
+bool UploadFile::save_uploaded_file(const char *filename, string user_name, const char *data, size_t len)
 {
     char dir_path[FILENAME_LEN];
-    strcpy(dir_path, doc_root);
-    strcat(dir_path, "/uploads");
+    snprintf(dir_path, sizeof(dir_path), "%s/uploads/%s", doc_root, user_name.c_str());
 
     // 创建上传目录（如果不存在）
     struct stat st;
@@ -95,23 +94,32 @@ bool UploadFile::save_uploaded_chunk(const char *filename, const char *data, siz
  * @param total_chunks 总分块数
  * @return 是否成功
  */
-bool UploadFile::merge_uploaded_file(const char *filename, int total_chunks)
+bool UploadFile::merge_uploaded_file(const char *filename, string user_name, int total_chunks)
 {
     // 准备最终文件路径
     char final_path[FILENAME_LEN];
-    snprintf(final_path, sizeof(final_path), "%s/uploads/%s", doc_root, filename);
+    snprintf(final_path, sizeof(final_path), "%s/uploads/%s/%s", doc_root, user_name.c_str(), filename);
 
     // 创建上传目录（如果不存在）
     char upload_dir[FILENAME_LEN];
-    snprintf(upload_dir, sizeof(upload_dir), "%s/uploads", doc_root);
+    snprintf(upload_dir, sizeof(upload_dir), "%s/uploads/%s", doc_root, user_name.c_str());
+
+    char sub_upload_dir[FILENAME_LEN];
+    snprintf(sub_upload_dir, sizeof(sub_upload_dir), "%s/uploads", doc_root);
 
     struct stat st;
     if (stat(upload_dir, &st))
     {
-        if (mkdir(upload_dir, 0755))
+        if (mkdir(sub_upload_dir, 0755))
         {
-            LOG_ERROR("Cannot create upload directory: %s", upload_dir);
+            LOG_ERROR("Cannot create upload directory: %s", sub_upload_dir);
             return false;
+        }else{
+            if (mkdir(upload_dir, 0755))
+            {
+                LOG_ERROR("Cannot create upload directory: %s", upload_dir);
+                return false;
+            }
         }
     }
 
@@ -185,8 +193,7 @@ bool UploadFile::merge_uploaded_file(const char *filename, int total_chunks)
 }
 
 /**
- * 清理指定文件的所有分块
- * @param filename 原始文件名
+ * 清理所有分块
  */
 void UploadFile::cleanup_chunks()
 {
@@ -235,6 +242,31 @@ void UploadFile::cleanup_chunks()
 
     closedir(dir);
 }
+
+/**
+ * 清理指定文件的所有分块
+ * @param filename 原始文件名
+ */
+void UploadFile::cleanup_chunks(const char *filename, int total_chunks)
+{
+    char chunk_dir[FILENAME_LEN];
+    snprintf(chunk_dir, sizeof(chunk_dir), "%s/uploads_chunks", doc_root);
+
+    char chunk_path[FILENAME_LEN];
+
+    // 读取所有的分块文件然后进行合并
+    for (int i = 0; i < total_chunks; i++)
+    {
+        // 当前索引文件
+        snprintf(chunk_path, sizeof(chunk_path), "%s/%s.part%d", chunk_dir, filename, i);
+        // 删除已合并的分块
+        if (unlink(chunk_path))
+        {
+            LOG_WARN("Cannot delete chunk file %s: %s", chunk_path, strerror(errno));
+        }
+    }
+}
+
 
 // 辅助函数：检查字符串是否全为数字
 bool UploadFile::is_all_digits(const char *str)

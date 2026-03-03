@@ -233,7 +233,7 @@ private:
     enhanced_session_info current_session_;
     std::string client_ip_;
     std::string user_agent_;
-    bool create_enhanced_session(const std::string &username);
+    bool create_enhanced_session(const std::string &username, string &session_id);
     bool validate_enhanced_session(const std::string &session_id);
 
     // ssl/tls协议

@@ -15,8 +15,10 @@ const char *error_404_form = "The requested file was not found on this server.\n
 const char *error_500_title = "Internal Error";
 const char *error_500_form = "There was an unusual problem serving the request file.\n";
 
-locker m_lock;
+locker user_lock;
+locker id_lock;
 map<string, string> users;  //内存中的账户密码对
+map<string, string> session_ids;  //内存中的sessionid用户名对
 
 void http_conn::initmysql_result(connection_pool *connPool)
 {
@@ -609,13 +611,13 @@ http_conn::HTTP_CODE http_conn::do_request()
             strcat(sql_insert, password);
             strcat(sql_insert, "')");
             
-            m_lock.lock();
+            user_lock.lock();
             if (users.find(name) == users.end())
             {
                 
                 int res = mysql_query(mysql, sql_insert);
                 users.insert(pair<string, string>(name, password));
-                m_lock.unlock();
+                user_lock.unlock();
 
                 if (!res)
                     strcpy(m_url, "/log.html");
@@ -623,7 +625,7 @@ http_conn::HTTP_CODE http_conn::do_request()
                     strcpy(m_url, "/registerError.html");
             }
             else{
-                m_lock.unlock();
+                user_lock.unlock();
                 strcpy(m_url, "/registerError.html");
             }
         }
@@ -633,11 +635,16 @@ http_conn::HTTP_CODE http_conn::do_request()
         {
             if (users.find(name) != users.end() && users[name] == password)
             {
-                if (create_enhanced_session(name))
+                string session_id;
+                if (create_enhanced_session(name, session_id))
                 {
                     LOG_INFO("User %s logged in successfully from %s",
                              name, client_ip_.c_str());
                     strcpy(m_url, "/welcome.html");
+                    id_lock.lock();
+                    session_ids[session_id]=name;
+                    id_lock.unlock();
+
                 }
                 else
                 {
@@ -696,7 +703,16 @@ http_conn::HTTP_CODE http_conn::do_request()
         strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
 
         free(m_url_real);
-    }else if (*(p + 1) == '9' && m_is_logged_in)
+    }
+    else if (*(p + 1) == 'a' && m_is_logged_in)
+    {
+        char *m_url_real = (char *)malloc(sizeof(char) * 200);
+        strcpy(m_url_real, "/download.html");
+        strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
+
+        free(m_url_real);
+    }
+    else if (*(p + 1) == '9' && m_is_logged_in)
     {
         char *filename = NULL;
         filename = m_url + 2;
@@ -705,7 +721,6 @@ http_conn::HTTP_CODE http_conn::do_request()
 
         // 保存分块或完整文件
         bool save_result = false;
-        bool is_merge_file = false;
         if (total_chunks > 1)
         {
             // 分块上传文件
@@ -715,14 +730,26 @@ http_conn::HTTP_CODE http_conn::do_request()
             // 如果是最后一个分块，合并文件
             if (save_result && chunk_num == total_chunks - 1)
             {
-                save_result = up_file.merge_uploaded_file(filename, total_chunks);
-                is_merge_file = true;
+                if (session_ids.find(m_session_id) != session_ids.end()){
+                    save_result = up_file.merge_uploaded_file(filename, session_ids[m_session_id], total_chunks);
+                }
+                else
+                {
+                    up_file.cleanup_chunks(filename, total_chunks);
+                    LOG_WARN("do not find session id %s, delete %d %s file chunks\n", m_session_id.c_str(), total_chunks, filename);
+                }
             }
         }
         else
         {
             // 单块直接保存
-            save_result = up_file.save_uploaded_file(filename, m_string, m_content_length);
+            if (session_ids.find(m_session_id) != session_ids.end()){
+                save_result = up_file.save_uploaded_file(filename, session_ids[m_session_id], m_string, m_content_length);
+            }
+            else
+            {
+                LOG_WARN("do not find session id %s, do not save file %s\n", m_session_id.c_str(), filename);
+            }
         }
 
         return POST_REQUEST;
@@ -1005,9 +1032,9 @@ void http_conn::deal_timer()
 
 
 
-bool http_conn::create_enhanced_session(const std::string &username)
+bool http_conn::create_enhanced_session(const std::string &username, string &session_id)
 {
-    std::string session_id = SessionManager::instance().create_session(
+    session_id = SessionManager::instance().create_session(
         username, client_ip_, ntohs(m_address.sin_port), user_agent_);
 
     if (!session_id.empty())

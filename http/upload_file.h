@@ -57,13 +57,14 @@ public:
     static const int WRITE_BUFFER_SIZE = 1024 * 32;
     static const size_t MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
     // 上传文件模块
-    bool save_uploaded_file(const char *filename, const char *data, size_t len);
+    bool save_uploaded_file(const char *filename, string user_name, const char *data, size_t len);
     bool is_valid_path(const char *path);
     bool save_uploaded_chunk(const char *filename, const char *data, size_t len,
                              int chunk_num, int total_chunks);
     void cleanup_chunks();
+    void cleanup_chunks(const char *filename, int total_chunks);
     bool is_all_digits(const char *str);
-    bool merge_uploaded_file(const char *filename, int total_chunks);
+    bool merge_uploaded_file(const char *filename, string user_name, int total_chunks);
 
 private:
     char *doc_root;
