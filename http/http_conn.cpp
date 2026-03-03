@@ -700,7 +700,6 @@ http_conn::HTTP_CODE http_conn::do_request()
     {
         char *filename = NULL;
         filename = m_url + 2;
-        printf("general upload file\n");
         UploadFile up_file(this->doc_root, 1);
         int chunk_num = chunk_header, total_chunks = total_header;
 
