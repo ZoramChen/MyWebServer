@@ -447,7 +447,7 @@
                 </div>
             `;
 
-            fetch("/a") // 发起请求
+            fetch("/b") // 发起请求
                 .then(res => { // 处理响应
                     if (!res.ok) throw new Error('获取列表失败: ' + res.status);
                     return res.text(); // 先获取文本用于调试
@@ -505,7 +505,7 @@
                             </div>
                             <div class="file-size">${formatFileSize(fileInfo.size)}</div>
                             <div class="file-date">${formatDate(fileInfo.date)}</div>
-                            <a href="/9${encodeURIComponent(fileInfo.name)}" class="download-btn">
+                            <a href="/c${encodeURIComponent(fileInfo.name)}" class="download-btn">
                                 <i class="fas fa-download"></i>
                                 <span>下载</span>
                             </a>

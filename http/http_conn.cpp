@@ -184,6 +184,8 @@ void http_conn::init()
 
     m_file_size = 0;
 
+    m_download_filename = NULL;
+
     memset(m_read_buf, '\0', READ_BUFFER_SIZE);
     memset(m_write_buf, '\0', WRITE_BUFFER_SIZE);
     memset(m_real_file, '\0', FILENAME_LEN);
@@ -704,14 +706,6 @@ http_conn::HTTP_CODE http_conn::do_request()
 
         free(m_url_real);
     }
-    else if (*(p + 1) == 'a' && m_is_logged_in)
-    {
-        char *m_url_real = (char *)malloc(sizeof(char) * 200);
-        strcpy(m_url_real, "/download.html");
-        strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
-
-        free(m_url_real);
-    }
     else if (*(p + 1) == '9' && m_is_logged_in)
     {
         char *filename = NULL;
@@ -753,6 +747,100 @@ http_conn::HTTP_CODE http_conn::do_request()
         }
 
         return POST_REQUEST;
+
+    }
+    else if (*(p + 1) == 'a' && m_is_logged_in)
+    {
+        char *m_url_real = (char *)malloc(sizeof(char) * 200);
+        strcpy(m_url_real, "/download.html");
+        strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
+
+        free(m_url_real);
+    }
+    else if (*(p + 1) == 'b' && m_is_logged_in)
+    {
+        if (session_ids.find(m_session_id) == session_ids.end())
+        {
+            LOG_WARN("do not find session id %s", m_session_id);
+            return NO_RESOURCE;
+        }
+        char dir_path[FILENAME_LEN];
+        string user_name = session_ids[m_session_id];
+        snprintf(dir_path, sizeof(dir_path), "%s/uploads/%s", doc_root, user_name.c_str());
+        DIR *dir = opendir(dir_path);
+        if (!dir)
+            return NO_RESOURCE;
+
+        // 将列举出来的目录结果作为响应内容发送给浏览器（客户端）给显示出来
+        struct dirent *entry;
+        std::string json = "[";
+        while ((entry = readdir(dir)) != NULL)
+        {
+            if (entry->d_type == DT_REG)
+            {
+                if (json.size() > 1)
+                    json += ",";
+
+                std::string fullpath = std::string(dir_path) + "/" + entry->d_name;
+                struct stat fileStat;
+                stat(fullpath.c_str(), &fileStat);
+
+                char dateBuf[64];
+                strftime(dateBuf, sizeof(dateBuf), "%Y-%m-%d", localtime(&fileStat.st_mtime));
+
+                json += "{";
+                json += "\"name\":\"" + std::string(entry->d_name) + "\",";
+                json += "\"size\":" + std::to_string(fileStat.st_size) + ",";
+                json += "\"lastModified\":\"" + std::string(dateBuf) + "\"";
+                json += "}";
+            }
+        }
+        json += "]";
+        closedir(dir);
+
+        add_status_line(200, ok_200_title);
+        add_headers(json.size());
+        add_content(json.c_str());
+        return NO_RESOURCE;
+    }
+    else if (*(p + 1) == 'c' && m_is_logged_in)
+    {
+        const char *filename = m_url + 2;
+
+        if (session_ids.find(m_session_id) == session_ids.end())
+        {
+            LOG_WARN("do not find session id %s", m_session_id);
+            return NO_RESOURCE;
+        }
+
+        char filepath[FILENAME_LEN];
+        snprintf(filepath, sizeof(filepath), "%s/uploads/%s/%s", doc_root, session_ids[m_session_id].c_str(), filename);
+
+
+        if (stat(filepath, &m_file_stat) < 0)
+        {
+            if (errno == ENOENT)
+            {
+                LOG_ERROR("File not found: %s", filepath);
+            }
+            else
+            {
+                LOG_ERROR("Cannot access file %s: %s", filepath, strerror(errno));
+            }
+            return NO_RESOURCE;
+        }
+
+        // 检查是否是目录
+        if (S_ISDIR(m_file_stat.st_mode))
+        {
+            LOG_ERROR("Path is a directory: %s", filepath);
+            return BAD_REQUEST;
+        }
+
+        strcpy(m_real_file, filepath);
+
+        m_download_filename = m_url + 2;
+
 
     }
     else
@@ -917,6 +1005,10 @@ bool http_conn::add_content(const char *content)
 {
     return add_response("%s", content);
 }
+bool http_conn::add_content_disposition(const char *filename)
+{
+    return add_response("Content-Disposition: attachment; filename=\"%s\"\r\n", filename);
+}
 bool http_conn::process_write(HTTP_CODE ret)
 {
     switch (ret)
@@ -956,6 +1048,14 @@ bool http_conn::process_write(HTTP_CODE ret)
         case FILE_REQUEST:
         {
             add_status_line(200, ok_200_title);
+
+            if (m_download_filename != NULL)
+            {
+                add_content_disposition(m_download_filename);
+                m_download_filename = NULL;
+            }
+
+
             if (m_file_stat.st_size != 0)
             {
                 if (m_need_set_cookie)
@@ -981,6 +1081,10 @@ bool http_conn::process_write(HTTP_CODE ret)
                 if (!add_content(ok_string))
                     return false;
             }
+        }
+        case NO_RESOURCE:
+        {
+            break;
         }
         default:
             return false;

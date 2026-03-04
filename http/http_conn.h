@@ -158,6 +158,7 @@ private:
     bool add_content_length(int content_length);
     bool add_linger();
     bool add_blank_line();
+    bool add_content_disposition(const char *filename);
 
 
 public:
@@ -248,6 +249,7 @@ private:
     int total_header;
     char *m_upload_filename;
     long int m_file_size;
+    char *m_download_filename;
     std::string m_download;
 
 

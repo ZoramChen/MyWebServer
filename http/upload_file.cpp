@@ -23,8 +23,6 @@ bool UploadFile::save_uploaded_file(const char *filename, string user_name, cons
     char full_path[FILENAME_LEN];
     snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, filename);
 
-    printf("upload file: %s\n", full_path);
-
     int fd = open(full_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0)
         return false;
