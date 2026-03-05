@@ -280,3 +280,84 @@ bool UploadFile::is_all_digits(const char *str)
     }
     return true;
 }
+
+
+
+
+std::string URLDecoder::decodeMixed(const std::string& input) {
+    std::string result;
+    result.reserve(input.length()); // 预分配空间
+    
+    for (size_t i = 0; i < input.length(); ) {
+        // 检查是否是 URL 编码序列 (%XX)
+        if (input[i] == '%' && i + 2 < input.length() && 
+            isHexDigit(input[i + 1]) && isHexDigit(input[i + 2])) {
+            
+            // 解码 %XX 序列
+            char high = input[i + 1];
+            char low = input[i + 2];
+            unsigned char byte = (hexToVal(high) << 4) | hexToVal(low);
+            
+            result.push_back(static_cast<char>(byte));
+            i += 3;
+        }
+        // 检查是否是直接可打印的 ASCII（英文、数字、常见符号）
+        else if (isPrintableASCII(input[i])) {
+            result.push_back(input[i]);
+            i++;
+        }
+        // 其他字符（可能是原始 UTF-8 字节）直接保留
+        else {
+            result.push_back(input[i]);
+            i++;
+        }
+    }
+    
+    // 处理 UTF-8 多字节序列的完整性
+    return fixUTF8(result);
+}
+
+bool URLDecoder::isHexDigit(char c) {
+    return std::isdigit(c) || 
+           (c >= 'A' && c <= 'F') || 
+           (c >= 'a' && c <= 'f');
+}
+
+unsigned char URLDecoder::hexToVal(char c) {
+    if (std::isdigit(c)) return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return c - 'a' + 10;
+}
+
+bool URLDecoder::isPrintableASCII(char c) {
+    // 包括：字母、数字、常见符号、空格，但不包括控制字符
+    return (c >= 32 && c <= 126);
+}
+
+std::string URLDecoder::fixUTF8(const std::string& str) {
+    // 检查末尾是否有不完整的 UTF-8 多字节序列
+    size_t len = str.length();
+    if (len == 0) return str;
+    
+    // 统计末尾连续的高位为 1 的字节数
+    int trailingBytes = 0;
+    for (size_t i = len - 1; i > 0 && (static_cast<unsigned char>(str[i]) & 0xC0) == 0x80; --i) {
+        trailingBytes++;
+    }
+    
+    // 如果末尾有不完整序列，移除它
+    if (trailingBytes > 0) {
+        unsigned char firstByte = static_cast<unsigned char>(str[len - trailingBytes - 1]);
+        int expectedBytes = 0;
+        
+        if ((firstByte & 0xF8) == 0xF0) expectedBytes = 3;      // 4字节序列
+        else if ((firstByte & 0xF0) == 0xE0) expectedBytes = 2; // 3字节序列
+        else if ((firstByte & 0xE0) == 0xC0) expectedBytes = 1; // 2字节序列
+        
+        if (trailingBytes != expectedBytes) {
+            return str.substr(0, len - trailingBytes - 1);
+        }
+    }
+    
+    return str;
+}

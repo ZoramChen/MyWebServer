@@ -247,7 +247,7 @@ private:
     char *m_method_override;
     int chunk_header;
     int total_header;
-    char *m_upload_filename;
+    string m_upload_filename;
     long int m_file_size;
     char *m_download_filename;
     std::string m_download;

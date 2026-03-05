@@ -71,4 +71,32 @@ private:
     int m_close_log;
 };
 
+
+
+
+class URLDecoder {
+public:
+    /**
+     * 解析混合字符串：包含 URL 编码的汉字 + 未编码的英文/数字
+     * 例如："Hello%E4%B8%96%E7%95%8C" -> "Hello世界"
+     * @param input 混合编码的输入字符串
+     * @return 解码后的 UTF-8 字符串
+     */
+    static std::string decodeMixed(const std::string& input);
+
+private:
+    // 判断是否为十六进制字符
+    static bool isHexDigit(char c);
+    
+    // 十六进制字符转数值
+    static unsigned char hexToVal(char c);
+    
+    // 判断是否为可打印 ASCII（保留原样）
+    static bool isPrintableASCII(char c);
+    
+    // 修复不完整的 UTF-8 序列
+    static std::string fixUTF8(const std::string& str);
+};
+
+
 #endif

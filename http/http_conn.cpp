@@ -419,8 +419,8 @@ http_conn::HTTP_CODE http_conn::parse_headers(char *text)
     {
         text += 12;
         text += strspn(text, " \t");
-        m_upload_filename = text;
-        LOG_INFO("Got upload filename: %s", m_upload_filename);
+        m_upload_filename = URLDecoder::decodeMixed(text);
+        LOG_INFO("Got upload filename: %s", m_upload_filename.c_str());
     }
     else if (strncasecmp(text, "X-File-Size:", 12) == 0)
     {
@@ -708,8 +708,7 @@ http_conn::HTTP_CODE http_conn::do_request()
     }
     else if (*(p + 1) == '9' && m_is_logged_in)
     {
-        char *filename = NULL;
-        filename = m_url + 2;
+        string filename = URLDecoder::decodeMixed(m_url + 2);
         UploadFile up_file(this->doc_root, 1);
         int chunk_num = chunk_header, total_chunks = total_header;
 
@@ -718,18 +717,18 @@ http_conn::HTTP_CODE http_conn::do_request()
         if (total_chunks > 1)
         {
             // 分块上传文件
-            save_result = up_file.save_uploaded_chunk(filename, m_string, m_content_length,
+            save_result = up_file.save_uploaded_chunk(filename.c_str(), m_string, m_content_length,
                                                       chunk_num, total_chunks);
 
             // 如果是最后一个分块，合并文件
             if (save_result && chunk_num == total_chunks - 1)
             {
                 if (session_ids.find(m_session_id) != session_ids.end()){
-                    save_result = up_file.merge_uploaded_file(filename, session_ids[m_session_id], total_chunks);
+                    save_result = up_file.merge_uploaded_file(filename.c_str(), session_ids[m_session_id], total_chunks);
                 }
                 else
                 {
-                    up_file.cleanup_chunks(filename, total_chunks);
+                    up_file.cleanup_chunks(filename.c_str(), total_chunks);
                     LOG_WARN("do not find session id %s, delete %d %s file chunks\n", m_session_id.c_str(), total_chunks, filename);
                 }
             }
@@ -738,11 +737,11 @@ http_conn::HTTP_CODE http_conn::do_request()
         {
             // 单块直接保存
             if (session_ids.find(m_session_id) != session_ids.end()){
-                save_result = up_file.save_uploaded_file(filename, session_ids[m_session_id], m_string, m_content_length);
+                save_result = up_file.save_uploaded_file(filename.c_str(), session_ids[m_session_id], m_string, m_content_length);
             }
             else
             {
-                LOG_WARN("do not find session id %s, do not save file %s\n", m_session_id.c_str(), filename);
+                LOG_WARN("do not find session id %s, do not save file %s\n", m_session_id.c_str(), filename.c_str());
             }
         }
 
@@ -786,7 +785,7 @@ http_conn::HTTP_CODE http_conn::do_request()
                 stat(fullpath.c_str(), &fileStat);
 
                 char dateBuf[64];
-                strftime(dateBuf, sizeof(dateBuf), "%Y-%m-%d", localtime(&fileStat.st_mtime));
+                strftime(dateBuf, sizeof(dateBuf), "%Y-%m-%d %H:%M:%S", localtime(&fileStat.st_mtime));
 
                 json += "{";
                 json += "\"name\":\"" + std::string(entry->d_name) + "\",";
@@ -805,7 +804,7 @@ http_conn::HTTP_CODE http_conn::do_request()
     }
     else if (*(p + 1) == 'c' && m_is_logged_in)
     {
-        const char *filename = m_url + 2;
+        string filename = URLDecoder::decodeMixed(m_url + 2);
 
         if (session_ids.find(m_session_id) == session_ids.end())
         {
@@ -814,7 +813,7 @@ http_conn::HTTP_CODE http_conn::do_request()
         }
 
         char filepath[FILENAME_LEN];
-        snprintf(filepath, sizeof(filepath), "%s/uploads/%s/%s", doc_root, session_ids[m_session_id].c_str(), filename);
+        snprintf(filepath, sizeof(filepath), "%s/uploads/%s/%s", doc_root, session_ids[m_session_id].c_str(), filename.c_str());
 
 
         if (stat(filepath, &m_file_stat) < 0)
