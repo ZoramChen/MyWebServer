@@ -3,12 +3,71 @@
     <head>
         <meta charset="UTF-8">
         <title>Sign up</title>
+        <style>
+            /* 全局样式重置与基础设置 */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                font-family: "Microsoft YaHei", Arial, sans-serif;
+            }
+            body {
+                background-color: #f5f5f5;
+                padding-top: 50px;
+            }
+            /* 注册标题样式 */
+            .title {
+                font-size: 20px;
+                color: #333;
+                margin-bottom: 20px;
+            }
+            /* 登录表单容器样式 */
+            .login {
+                width: 350px;
+                margin: 0 auto;
+                padding: 30px;
+                background-color: #fff;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+            /* 输入框样式 */
+            .login input[type="text"],
+            .login input[type="password"] {
+                width: 280px;
+                height: 40px;
+                padding: 0 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                outline: none;
+                transition: border-color 0.3s;
+            }
+            /* 输入框聚焦样式 */
+            .login input[type="text"]:focus,
+            .login input[type="password"]:focus {
+                border-color: #66afe9;
+            }
+            /* 按钮样式 */
+            .login button {
+                width: 280px;
+                height: 40px;
+                background-color: #428bca;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 16px;
+                cursor: pointer;
+                transition: background-color 0.3s;
+            }
+            /* 按钮hover样式 */
+            .login button:hover {
+                background-color: #3071a9;
+            }
+        </style>
     </head>
     <body>
-<br/>
-<br/>
-    <div align="center"><font size="5"> <strong>注册</strong></font></div>
-    <br/>
+        <div align="center" class="title"><strong>注册</strong></div>
+        <br/>
         <div class="login">
                 <form action="3CGISQL.cgi" method="post">
                         <div align="center"><input type="text" name="user" placeholder="用户名" required="required"></div><br/>

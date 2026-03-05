@@ -3,21 +3,81 @@
     <head>
         <meta charset="UTF-8">
         <title>Sign in</title>
+        <style>
+            /* 全局样式重置与基础设置 */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                font-family: "Microsoft Yahei", Arial, sans-serif;
+            }
+            body {
+                background-color: #f5f5f5;
+                padding-top: 50px;
+            }
+            /* 登录标题样式 */
+            .title {
+                font-size: 20px;
+                color: #333;
+                margin-bottom: 20px;
+            }
+            /* 登录容器样式 */
+            .login {
+                background-color: #fff;
+                width: 350px;
+                margin: 0 auto;
+                padding: 30px 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+            /* 输入框样式 */
+            .login input[type="text"],
+            .login input[type="password"] {
+                width: 80%;
+                padding: 10px 15px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                outline: none;
+                transition: border-color 0.3s;
+            }
+            .login input[type="text"]:focus,
+            .login input[type="password"]:focus {
+                border-color: #409eff;
+            }
+            /* 按钮样式 */
+            .login button {
+                width: 80%;
+                padding: 10px 0;
+                background-color: #409eff;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                font-size: 14px;
+                cursor: pointer;
+                transition: background-color 0.3s;
+            }
+            .login button:hover {
+                background-color: #337ecc;
+            }
+            /* 错误提示样式 */
+            .error-tip {
+                color: #f56c6c;
+                font-size: 13px;
+                margin-top: 10px;
+            }
+        </style>
     </head>
     <body>
-<br/>
-<br/>
-    <div align="center"><font size="5"> <strong>登录</strong></font></div>
-    <br/>
+        <div align="center" class="title"><strong>登录</strong></div>
         <div class="login">
                 <form action="2CGISQL.cgi" method="post">
                         <div align="center"><input type="text" name="user" placeholder="用户名" required="required"></div><br/>
                         <div align="center"><input type="password" name="password" placeholder="登录密码" required="required"></div><br/>
                         <div align="center"><button type="submit">确定</button></div>
                 </form>
-		<br/>
-               <div  align="center">提示：用户名或密码错误，请重试</div>
+                <br/>
+               <div align="center" class="error-tip">提示：用户名或密码错误，请重试</div>
         </div>
     </body>
 </html>
-
